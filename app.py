@@ -33,10 +33,10 @@ def upload():
     # Parse the data as a Pandas DataFrame type
     if getattr(sys, 'frozen', False):
         app_path = sys._MEIPASS
-        probit_df = pd.read_csv(app_path + '/data/Probit.csv', delimiter=',')
+        probit_df = pd.read_csv(app_path + '/static/Probit.csv', delimiter=',')
     else:
         app_path = os.path.dirname(os.path.abspath(__file__))
-        probit_df = pd.read_csv(app_path + '/data/Probit.csv', delimiter=',')
+        probit_df = pd.read_csv(app_path + '/static/Probit.csv', delimiter=',')
 
     #
     sustancias_df = pd.read_excel(file, sheet_name='Identificacion de Sustancias', skiprows=4)
