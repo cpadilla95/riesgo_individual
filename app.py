@@ -113,6 +113,12 @@ def compute():
         '1.00EXP-11': 0, '1.00EXP-12': 0
     })
 
+    iso_riesgo_equipo_df = pd.DataFrame({
+        'EQUIPO': df['EQUIPO'], '1.00EXP-03': 0, '1.00EXP-04': 0,
+        '1.00EXP-05': 0, '1.00EXP-06': 0, '1.00EXP-07': 0, '1.00EXP-08': 0,
+        '1.00EXP-09': 0, '1.00EXP-10': 0, '1.00EXP-11': 0, '1.00EXP-12': 0
+    }).groupby('EQUIPO').sum()
+
     col = 0 
     for dist in var.distancias:
         rad_incendio[dist] = fn.radiacion(dist, df['RADIACIÓN TÉRMICA (kW/m2) INCENDIO DE PISCINA'])
@@ -151,49 +157,79 @@ def compute():
             d2 = var.distancias[col]
 
             df3 = iso_riesgo_df.join(prob_muerte[[d1, d2]])
+            df4 = iso_riesgo_equipo_df.join(prob_muerte[['EQUIPO', d1, d2]].groupby('EQUIPO').sum())
 
             iso_riesgo_df['1.00EXP-03'] = df3.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-03'], ries=pow(10, -3)
+            ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-03'] = df4.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-03'], ries=pow(10, -3)
             ), axis=1)
             iso_riesgo_df['1.00EXP-04'] = df3.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-04'], ries=pow(10, -4)
             ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-04'] = df4.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-04'], ries=pow(10, -4)
+            ), axis=1)
             iso_riesgo_df['1.00EXP-05'] = df3.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-05'], ries=pow(10, -5)
+            ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-05'] = df4.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-05'], ries=pow(10, -5)
             ), axis=1)
             iso_riesgo_df['1.00EXP-06'] = df3.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-06'], ries=pow(10, -6)
             ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-06'] = df4.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-06'], ries=pow(10, -6)
+            ), axis=1)
             iso_riesgo_df['1.00EXP-07'] = df3.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-07'], ries=pow(10, -7)
+            ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-07'] = df4.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-07'], ries=pow(10, -7)
             ), axis=1)
             iso_riesgo_df['1.00EXP-08'] = df3.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-08'], ries=pow(10, -8)
             ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-08'] = df4.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-08'], ries=pow(10, -8)
+            ), axis=1)
             iso_riesgo_df['1.00EXP-09'] = df3.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-09'], ries=pow(10, -9)
+            ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-09'] = df4.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-09'], ries=pow(10, -9)
             ), axis=1)
             iso_riesgo_df['1.00EXP-10'] = df3.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-10'], ries=pow(10, -10)
             ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-10'] = df4.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-10'], ries=pow(10, -10)
+            ), axis=1)
             iso_riesgo_df['1.00EXP-11'] = df3.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-11'], ries=pow(10, -11)
             ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-11'] = df4.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-11'], ries=pow(10, -11)
+            ), axis=1)
             iso_riesgo_df['1.00EXP-12'] = df3.apply(lambda x: fn.iso_riesgo(
+                d1, d2, x[d1], x[d2], x['1.00EXP-12'], ries=pow(10, -12)
+            ), axis=1)
+            iso_riesgo_equipo_df['1.00EXP-12'] = df4.apply(lambda x: fn.iso_riesgo(
                 d1, d2, x[d1], x[d2], x['1.00EXP-12'], ries=pow(10, -12)
             ), axis=1)
         col += 1
  
     prob_muerte_equipo = prob_muerte.groupby('EQUIPO').sum().drop(columns=['CODIGO ESCENARIO'])
 
-    # Return HTML snippet that will render the table
-    # return render_template('view-file.html',  table=iso_riesgo_df.to_html(classes='data', header="true"))
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         df.to_excel(writer, sheet_name="RI AAD")
         prob_muerte.to_excel(writer, sheet_name="RI", index=False)
         prob_muerte_equipo.to_excel(writer, sheet_name="RI x Equipo")
         iso_riesgo_df.to_excel(writer, sheet_name="Isoriesgo", index=False)
+        iso_riesgo_equipo_df.to_excel(writer, sheet_name="Isoriesgo x Equipo")
     output.seek(0)
 
     return send_file(output, download_name=f"{file_name}_RI.xlsx", as_attachment=True)
