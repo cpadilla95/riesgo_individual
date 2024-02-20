@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en">
+ 
+<head>
+    <title>Archivo Cargado</title>
+</head>
+ 
+<body>
+    <h1>Calculo del Riesgo Individual</h1>
+    <form method="post" action="{{ url_for('preview') }}">
+        <b>Archivo cargado: </b>
+        <input type="submit" value="Ver Archivo" />
+    </form>
+    <hr>
+    <form method="post" action="{{ url_for('compute') }}">
+        <b>P2: </b>
+        <input type="text" name="p2" size="10" required/>
+        <br>
+        <b>% Max. Rosa Vientos: </b>
+        <input type="text" name="rosa_vientos" size="20"required/>
+        <hr>
+        <input type="submit" value="Calcular Riesgo Individual" />
+    </form>
+</body>
+ 
+</html>
