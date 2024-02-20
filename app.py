@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 import re
+import sys
 from io import BytesIO
 from util import functions as fn, variables as var
 from flask import Flask, render_template, request, send_file
@@ -30,7 +31,12 @@ def upload():
     file_name = re.findall(r'(.*)\.', file.filename)[0]
 
     # Parse the data as a Pandas DataFrame type
-    probit_df = pd.read_csv('data/Probit.csv', delimiter=',')
+    if getattr(sys, 'frozen', False):
+        app_path = sys._MEIPASS
+        probit_df = pd.read_csv(app_path + '/data/Probit.csv', delimiter=',')
+    else:
+        app_path = os.path.dirname(os.path.abspath(__file__))
+        probit_df = pd.read_csv(app_path + '/data/Probit.csv', delimiter=',')
 
     #
     sustancias_df = pd.read_excel(file, sheet_name='Identificacion de Sustancias', skiprows=4)
