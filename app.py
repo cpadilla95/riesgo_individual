@@ -40,8 +40,9 @@ def upload():
 
     #
     sustancias_df = pd.read_excel(file, sheet_name='Identificacion de Sustancias', skiprows=4)
-    stop_row = sustancias_df[sustancias_df.isnull().all(axis=1) == True].index.tolist()[0]
-    sustancias_df = sustancias_df.loc[0:stop_row-1]
+    stop_row = sustancias_df[sustancias_df['Código'].isna()]
+    if not stop_row.empty:
+        sustancias_df = sustancias_df.loc[0:stop_row.index.tolist()[0]-1]
 
     #
     ductos_df = pd.read_excel(file, sheet_name='Input - Ductos', skiprows=3, usecols='A', names=['Codigo'])
@@ -54,8 +55,11 @@ def upload():
         skiprows=7,
         usecols = 'C:D, G:J, M, P:Q, AA:AH, AL:AS, AW:BD, BH:BI, BM:BN, BR:BV, BZ:CD'
     )
-
     df.columns = var.column_names
+    stop_row = df[df['SUSTANCIA'].isna()]
+    if not stop_row.empty:
+        df = df.loc[0:stop_row.index.tolist()[0]-1]
+
     df.replace(r'^\-$',np.NaN,inplace=True,regex=True)
     df['EQUIPO'] = df['EQUIPO'].fillna(method='ffill', axis=0)
     df['MODIFICADORES FRECUENCIA'] = df['MODIFICADORES FRECUENCIA'].astype(float)
