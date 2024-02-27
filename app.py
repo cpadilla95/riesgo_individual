@@ -12,7 +12,6 @@ app = Flask(__name__)
 
 df = None
 probit_df = None
-sustancias_df = None
 ductos_df = None
 file_name = None
 
@@ -26,7 +25,7 @@ def upload():
     # Read the File using Flask request
     file = request.files['file']
 
-    global df, probit_df, sustancias_df, ductos_df, file_name
+    global df, probit_df, ductos_df, file_name
 
     file_name = re.findall(r'(.*)\.', file.filename)[0]
 
@@ -64,13 +63,16 @@ def upload():
     df['EQUIPO'] = df['EQUIPO'].fillna(method='ffill', axis=0)
     df['MODIFICADORES FRECUENCIA'] = df['MODIFICADORES FRECUENCIA'].astype(float)
     df.insert(0, 'COD ESC FRECUENCIAS', df['CODIGO ESCENARIO'].str[3:])
-    # df.insert(5, 'FASE SUSTANCIA', df['SUSTANCIA'].apply(lambda x: 'Gas' if 'Gas' in x else 'Liquido'))
     df.insert(5, 'FASE SUSTANCIA', df['SUSTANCIA'].apply(
         lambda x:'Gas' if any(gas == x for gas in var.gases) else 'Liquido'
     ))
-    df.insert(6, 'CATEGORIA INFLAMABILIDAD', df['SUSTANCIA'].apply(
-        lambda x: 1 if any(gas == x for gas in var.gases) else (3 if 'Diesel' in x else 2)
-    ))
+
+    ##
+    df2 = df['CODIGO ESCENARIO'].str.split('/', expand=True)
+    df2.columns = ['Localización', 'Iniciador', 'Código']
+    df2 = pd.merge(df2, sustancias_df, on='Código', how='left')
+    df.insert(6, 'CATEGORIA INFLAMABILIDAD', df2['Categoria'])
+    df.insert(7, 'REACTIVIDAD', df2['Reactividad'])
 
     return render_template('file-uploaded.html')
 
@@ -87,7 +89,7 @@ def preview():
 
 @app.route('/compute', methods=['GET', 'POST'])
 def compute():
-    global df, probit_df, sustancias_df, ductos_df, file_name
+    global df, probit_df, ductos_df, file_name
 
     df['FRECUENCIA FALLA MOD (AÑO -1)'] = np.where(
         df['MODIFICADORES FRECUENCIA'].isna,
@@ -95,7 +97,9 @@ def compute():
         df['FRECUENCIA FALLA (año x m -1)'] * df['MODIFICADORES FRECUENCIA']
     )
 
-    df['P1'] = fn.p1(df, sustancias_df)
+    df['P1'] = df.apply(lambda x: fn.get_p1(
+        x['CATEGORIA INFLAMABILIDAD'], x['REACTIVIDAD'], x['TASA (kg/s)']
+    ), axis=1)
     df['P2'] = float(request.form['p2'])
     df['P3'] = fn.p3(df, ductos_df)
     df['P4'] = fn.p4(df['SOBREPRESION (PSI) EXPLOSION DIA'], df['SOBREPRESION (PSI) EXPLOSION NOCHE'])

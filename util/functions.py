@@ -38,16 +38,9 @@ def radiacion(dist, tabla):
       )
     ), axis=1)
 
-def p1(df, sustancias_df):
-    df2 = df['CODIGO ESCENARIO'].str.split('/', expand=True)
-    df2.columns = ['Localización', 'Iniciador', 'Código']
-    df2 = pd.merge(df2, sustancias_df, on='Código', how='outer')
-    df2 = df2.join(df['TASA (kg/s)'])
-    return df2.apply(lambda x: get_p1(x['Categoria'], x['Reactividad'], x['TASA (kg/s)']), axis=1)
-
 def get_p1(categoria, reactividad, tasa):
-  if categoria == 1:
-    if reactividad == 'Baja':
+  if categoria.item() == 1:
+    if reactividad.item() == 'Baja':
       if tasa < 10:
         return 0.02
       elif tasa > 100:
@@ -61,13 +54,13 @@ def get_p1(categoria, reactividad, tasa):
         return 0.7
       else:
         return 0.5
-  elif categoria == 2:
-    if tasa > 100:
+  elif categoria.item() == 2:
+    if tasa.item() > 100:
       return 0.1
     else:
       return 0.065
   else:
-    if tasa > 100 or pd.isna(tasa):
+    if tasa.item() > 100 or pd.isna(tasa.item()):
       return 0.1
     else:
       return 0.06
