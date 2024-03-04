@@ -4,16 +4,16 @@ import os
 import re
 import sys
 from io import BytesIO
-from util import functions as fn, variables as var
+from util import variables as var, read_files
+from functions import main as fn, aad_functions as aad_fn, aai_functions as aai_fn
 from flask import Flask, render_template, request, send_file
 from fileinput import filename
 
 app = Flask(__name__)
 
-df = None
-probit_df = None
+aad_df = None
+aai_df = None
 ductos_df = None
-file_name = None
 
 # Root endpoint
 @app.get('/')
@@ -22,231 +22,175 @@ def home():
 
 @app.route('/upload', methods=['GET', 'POST'])
 def upload():
-    # Read the File using Flask request
+    global aad_df, aai_df, ductos_df
+
+    # Leer el archivo usando Flask request
     file = request.files['file']
-
-    global df, probit_df, ductos_df, file_name
-
-    file_name = re.findall(r'(.*)\.', file.filename)[0]
-
-    # Parse the data as a Pandas DataFrame type
-    if getattr(sys, 'frozen', False):
-        app_path = sys._MEIPASS
-        probit_df = pd.read_csv(app_path + '/static/Probit.csv', delimiter=',')
-    else:
-        app_path = os.path.dirname(os.path.abspath(__file__))
-        probit_df = pd.read_csv(app_path + '/static/Probit.csv', delimiter=',')
-
-    #
-    sustancias_df = pd.read_excel(file, sheet_name='Identificacion de Sustancias', skiprows=4)
-    stop_row = sustancias_df[sustancias_df['Código'].isna()]
-    if not stop_row.empty:
-        sustancias_df = sustancias_df.loc[0:stop_row.index.tolist()[0]-1]
-
-    #
+    # Leer Pestaña de Sustancias
+    sustancias_df = read_files.sustancias(file)
+    # Leer Pestaña de Ductos
     ductos_df = pd.read_excel(file, sheet_name='Input - Ductos', skiprows=3, usecols='A', names=['Codigo'])
-
-    # Parse the data as a Pandas DataFrame type
-    df = pd.read_excel(
-        file,
-        header=None,
-        sheet_name='Resultados AAD - RI',
-        skiprows=7,
-        usecols = 'C:D, G:J, M, P:Q, AA:AH, AL:AS, AW:BD, BH:BI, BM:BN, BR:BV, BZ:CD'
-    )
-    df.columns = var.column_names
-    stop_row = df[df['SUSTANCIA'].isna()]
-    if not stop_row.empty:
-        df = df.loc[0:stop_row.index.tolist()[0]-1]
-
-    df.replace(r'^\-$',np.NaN,inplace=True,regex=True)
-    df['EQUIPO'] = df['EQUIPO'].fillna(method='ffill', axis=0)
-    df['MODIFICADORES FRECUENCIA'] = df['MODIFICADORES FRECUENCIA'].astype(float)
-    df.insert(0, 'COD ESC FRECUENCIAS', df['CODIGO ESCENARIO'].str[3:])
-    df.insert(5, 'FASE SUSTANCIA', df['SUSTANCIA'].apply(
-        lambda x:'Gas' if any(gas == x for gas in var.gases) else 'Liquido'
-    ))
-
-    ##
-    df2 = df['CODIGO ESCENARIO'].str.split('/', expand=True)
-    df2.columns = ['Localización', 'Iniciador', 'Código']
-    df2 = pd.merge(df2, sustancias_df, on='Código', how='left')
-    df.insert(6, 'CATEGORIA INFLAMABILIDAD', df2['Categoria'])
-    df.insert(7, 'REACTIVIDAD', df2['Reactividad'])
+    # Leer Pestaña Riesgo AAD
+    aad_df = read_files.riesgo_AAD(file, sustancias_df)
+    # Leer Pestaña Riesgo AAI
+    aai_df = read_files.riesgo_AAI(file)
 
     return render_template('file-uploaded.html')
 
 @app.route('/preview', methods=['GET', 'POST'])
 def preview():
-    global df
+    global aad_df, aai_df
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, sheet_name="RI AAD", float_format="%.2f")
+        aad_df.to_excel(writer, sheet_name="RI AAD", float_format="%.2f")
+        aai_df.to_excel(writer, sheet_name="RI AAI", float_format="%.2f")
     output.seek(0)
 
     return send_file(output, download_name="vista_previa_riesgos.xlsx", as_attachment=True)
 
 @app.route('/compute', methods=['GET', 'POST'])
 def compute():
-    global df, probit_df, ductos_df, file_name
+    global aad_df, aai_df, ductos_df
 
-    df['FRECUENCIA FALLA MOD (AÑO -1)'] = np.where(
-        df['MODIFICADORES FRECUENCIA'].isna,
-        df['FRECUENCIA FALLA (año x m -1)'],
-        df['FRECUENCIA FALLA (año x m -1)'] * df['MODIFICADORES FRECUENCIA']
+    # Leer probabilidades
+    if getattr(sys, 'frozen', False):
+        temp_path = sys._MEIPASS
+        probit_df = pd.read_csv(temp_path + '/static/Probit.csv', delimiter=',')
+    else:
+        app_path = os.path.dirname(os.path.abspath(__file__))
+        probit_df = pd.read_csv(app_path + '/static/Probit.csv', delimiter=',')
+
+    # Calcular probabilidades y frecuencias AAD
+    aad_df = aad_fn.obtener_probabilidades(aad_df, float(request.form['p2AAD']), ductos_df)
+    frecuencias_df = aad_fn.obtener_frecuencias(aad_df)
+    aad_df = aad_df.join(frecuencias_df)
+
+    # Calcular probabilidades y frecuencias AAI
+    aai_df = aai_fn.obtener_probabilidades(
+        aai_df,
+        float(request.form['p1AAI']),
+        float(request.form['p2AAI']),
+        float(request.form['pResidual'])
     )
+    aai_df = aai_fn.obtener_frecuencias(aai_df)
 
-    df['P1'] = df.apply(lambda x: fn.get_p1(
-        x['CATEGORIA INFLAMABILIDAD'], x['REACTIVIDAD'], x['TASA (kg/s)']
-    ), axis=1)
-    df['P2'] = float(request.form['p2'])
-    df['P3'] = fn.p3(df, ductos_df)
-    df['P4'] = fn.p4(df['SOBREPRESION (PSI) EXPLOSION DIA'], df['SOBREPRESION (PSI) EXPLOSION NOCHE'])
-    df['P5'] = 0
+    # Definir dataframes a calcular
+    prob_muerte_aad = pd.DataFrame(columns=['EQUIPO', 'CODIGO ESCENARIO'] + var.distancias)
+    prob_muerte_aai = pd.DataFrame(columns=['CUERPO DE AGUA', 'CODIGO ESCENARIO'] + var.distancias)
 
-    frecuencias_df = fn.obtener_frecuencias(df)
-    df = df.join(frecuencias_df)
-
-    rad_incendio = pd.DataFrame(columns=var.distancias)
-    rad_chorro = pd.DataFrame(columns=var.distancias)
-    rad_bola = pd.DataFrame(columns=var.distancias)
-    probit2_incendio = pd.DataFrame(columns=var.distancias)
-    probit2_chorro = pd.DataFrame(columns=var.distancias)
-    probit2_bola = pd.DataFrame(columns=var.distancias)
-    llamarada_dia = pd.DataFrame(columns=var.distancias)
-    llamarada_noche = pd.DataFrame(columns=var.distancias)
-    presion_dia = pd.DataFrame(columns=var.distancias)
-    presion_noche = pd.DataFrame(columns=var.distancias)
-    prob_muerte = pd.DataFrame(columns=['EQUIPO', 'CODIGO ESCENARIO'] + var.distancias)
-
-    iso_riesgo_df = pd.DataFrame({
-        'EQUIPO': df['EQUIPO'], 'CODIGO ESCENARIO': df['CODIGO ESCENARIO'],
+    iso_riesgo_aad = pd.DataFrame({
+        'EQUIPO': aad_df['EQUIPO'], 'CODIGO ESCENARIO': aad_df['CODIGO ESCENARIO'],
         '1.00EXP-03': 0, '1.00EXP-04': 0, '1.00EXP-05': 0, '1.00EXP-06': 0,
         '1.00EXP-07': 0, '1.00EXP-08': 0, '1.00EXP-09': 0, '1.00EXP-10': 0,
         '1.00EXP-11': 0, '1.00EXP-12': 0
     })
 
-    iso_riesgo_equipo_df = pd.DataFrame({
-        'EQUIPO': df['EQUIPO'], '1.00EXP-03': 0, '1.00EXP-04': 0,
+    iso_riesgo_aai = pd.DataFrame({
+        'EQUIPO': aai_df['CUERPO DE AGUA'], 'CODIGO ESCENARIO': aai_df['CODIGO ESCENARIO'],
+        '1.00EXP-03': 0, '1.00EXP-04': 0, '1.00EXP-05': 0, '1.00EXP-06': 0,
+        '1.00EXP-07': 0, '1.00EXP-08': 0, '1.00EXP-09': 0, '1.00EXP-10': 0,
+        '1.00EXP-11': 0, '1.00EXP-12': 0
+    })
+
+    iso_riesgo_equipo_aad = pd.DataFrame({
+        'EQUIPO': aad_df['EQUIPO'], '1.00EXP-03': 0, '1.00EXP-04': 0,
         '1.00EXP-05': 0, '1.00EXP-06': 0, '1.00EXP-07': 0, '1.00EXP-08': 0,
         '1.00EXP-09': 0, '1.00EXP-10': 0, '1.00EXP-11': 0, '1.00EXP-12': 0
     }).groupby('EQUIPO').sum()
 
-    col = 0 
+    iso_riesgo_equipo_aai = pd.DataFrame({
+        'CUERPO DE AGUA': aai_df['CUERPO DE AGUA'], '1.00EXP-03': 0, '1.00EXP-04': 0,
+        '1.00EXP-05': 0, '1.00EXP-06': 0, '1.00EXP-07': 0, '1.00EXP-08': 0,
+        '1.00EXP-09': 0, '1.00EXP-10': 0, '1.00EXP-11': 0, '1.00EXP-12': 0
+    }).groupby('CUERPO DE AGUA').sum()
+
+    rosa_vientos = float(request.form['rosa_vientos'])/100
+    col = 0
     for dist in var.distancias:
-        rad_incendio[dist] = fn.radiacion(dist, df['RADIACIÓN TÉRMICA (kW/m2) INCENDIO DE PISCINA'])
-        rad_chorro[dist] = fn.radiacion(dist, df['RADIACIÓN TÉRMICA (kW/m2) CHORRO DE FUEGO'])
-        rad_bola[dist] = fn.radiacion(dist, df['RADIACIÓN TÉRMICA (kW/m2) BOLA DE FUEGO'])
+        for risk in [aad_df, aai_df]:
+            rad_incendio = fn.radiacion(dist, risk['RADIACIÓN TÉRMICA (kW/m2) INCENDIO DE PISCINA'])
+            rad_chorro = fn.radiacion(dist, risk['RADIACIÓN TÉRMICA (kW/m2) CHORRO DE FUEGO'])
+            rad_bola = fn.radiacion(dist, risk['RADIACIÓN TÉRMICA (kW/m2) BOLA DE FUEGO'])
 
-        probit2_incendio[dist] = rad_incendio[dist].apply(lambda x: fn.probit2(x, probit_df))
-        probit2_chorro[dist] = rad_chorro[dist].apply(lambda x: fn.probit2(x, probit_df))
-        probit2_bola[dist] = rad_bola[dist].apply(lambda x: fn.probit2(x, probit_df))
+            probit2_incendio = rad_incendio.apply(lambda x: fn.probit2(x, probit_df))
+            probit2_chorro = rad_chorro.apply(lambda x: fn.probit2(x, probit_df))
+            probit2_bola= rad_bola.apply(lambda x: fn.probit2(x, probit_df))
 
-        rosa_vientos = float(request.form['rosa_vientos'])/100
-        llamarada_dia[dist] = df['DISPERSIÓN DE NUBE INFLAMABLE - DISTANCIAS DE AFECTACIÓN (m)']['Dia 100% LII'].apply(
-            lambda x: rosa_vientos if dist < x else 0
-        )
-        llamarada_noche[dist] = df['DISPERSIÓN DE NUBE INFLAMABLE - DISTANCIAS DE AFECTACIÓN (m)']['Noche 100% LII'].apply(
-            lambda x: rosa_vientos if dist < x else 0
-        )
+            llamarada_dia = risk['DISPERSIÓN DE NUBE INFLAMABLE - DISTANCIAS DE AFECTACIÓN (m)']['Dia 100% LII'].apply(
+                lambda x: rosa_vientos if dist < x else 0
+            )
+            llamarada_noche = risk['DISPERSIÓN DE NUBE INFLAMABLE - DISTANCIAS DE AFECTACIÓN (m)']['Noche 100% LII'].apply(
+                lambda x: rosa_vientos if dist < x else 0
+            )
 
-        presion_dia[dist] = df['SOBREPRESION (PSI) EXPLOSION DIA']['4.3'].apply(lambda x: rosa_vientos if dist < x else 0)
-        presion_noche[dist] = df['SOBREPRESION (PSI) EXPLOSION NOCHE']['4.3'].apply(lambda x: rosa_vientos if dist < x else 0)
+            presion_dia= risk['SOBREPRESION (PSI) EXPLOSION DIA']['4.3'].apply(lambda x: rosa_vientos if dist < x else 0)
+            presion_noche = risk['SOBREPRESION (PSI) EXPLOSION NOCHE']['4.3'].apply(lambda x: rosa_vientos if dist < x else 0)
 
-        prob_muerte['EQUIPO'] = df['EQUIPO']
-        prob_muerte['CODIGO ESCENARIO'] = df['CODIGO ESCENARIO']
-        prob_muerte[dist] = 0.6 * (
-            probit2_incendio[dist] * df['Frecuencias']['PF'] + probit2_chorro[dist] * df['Frecuencias']['JF'] +
-            probit2_bola[dist] * df['Frecuencias']['BLEVE'] + llamarada_dia[dist] * df['Frecuencias']['FF'] +
-            presion_dia[dist] * df['Frecuencias']['EXP']
-        ) + 0.4 * (
-            probit2_incendio[dist] * df['Frecuencias']['PF'] + probit2_chorro[dist] * df['Frecuencias']['JF'] +
-            probit2_bola[dist] * df['Frecuencias']['BLEVE'] + llamarada_noche[dist] * df['Frecuencias']['FF'] +
-            presion_noche[dist] * df['Frecuencias']['EXP']            
-        )
+            if 'EQUIPO' in risk.columns:
+                prob_muerte_aad['EQUIPO'] = risk['EQUIPO']
+                prob_muerte_aad['CODIGO ESCENARIO'] = risk['CODIGO ESCENARIO']
+                prob_muerte_aad[dist] =  0.6 * (
+                    probit2_incendio * risk['Frecuencias']['PF'] + probit2_chorro * risk['Frecuencias']['JF'] +
+                    probit2_bola * risk['Frecuencias']['BLEVE'] + llamarada_dia * risk['Frecuencias']['FF'] +
+                    presion_dia * risk['Frecuencias']['EXP']
+                ) + 0.4 * (
+                    probit2_incendio * risk['Frecuencias']['PF'] + probit2_chorro * risk['Frecuencias']['JF'] +
+                    probit2_bola * risk['Frecuencias']['BLEVE'] + llamarada_noche * risk['Frecuencias']['FF'] +
+                    presion_noche * risk['Frecuencias']['EXP']            
+                )
+            else:
+                prob_muerte_aai['CUERPO DE AGUA'] = risk['CUERPO DE AGUA']
+                prob_muerte_aai['CODIGO ESCENARIO'] = risk['CODIGO ESCENARIO']
+                prob_muerte_aai[dist] = 0.6 * (
+                    probit2_incendio * risk['Frecuencias']['PF'] +
+                    llamarada_dia * risk['Frecuencias']['FF']
+                ) + 0.4 * (
+                    probit2_incendio * risk['Frecuencias']['PF'] +
+                    llamarada_noche * risk['Frecuencias']['FF']
+                )
 
-        if col > 0:
-            d1 = var.distancias[col - 1]
-            d2 = var.distancias[col]
+            if col > 0:
+                d1 = var.distancias[col - 1]
+                d2 = var.distancias[col]
 
-            df3 = iso_riesgo_df.join(prob_muerte[[d1, d2]])
-            df4 = iso_riesgo_equipo_df.join(prob_muerte[['EQUIPO', d1, d2]].groupby('EQUIPO').sum())
-
-            iso_riesgo_df['1.00EXP-03'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-03'], ries=pow(10, -3)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-03'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-03'], ries=pow(10, -3)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-04'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-04'], ries=pow(10, -4)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-04'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-04'], ries=pow(10, -4)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-05'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-05'], ries=pow(10, -5)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-05'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-05'], ries=pow(10, -5)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-06'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-06'], ries=pow(10, -6)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-06'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-06'], ries=pow(10, -6)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-07'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-07'], ries=pow(10, -7)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-07'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-07'], ries=pow(10, -7)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-08'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-08'], ries=pow(10, -8)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-08'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-08'], ries=pow(10, -8)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-09'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-09'], ries=pow(10, -9)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-09'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-09'], ries=pow(10, -9)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-10'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-10'], ries=pow(10, -10)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-10'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-10'], ries=pow(10, -10)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-11'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-11'], ries=pow(10, -11)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-11'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-11'], ries=pow(10, -11)
-            ), axis=1)
-            iso_riesgo_df['1.00EXP-12'] = df3.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-12'], ries=pow(10, -12)
-            ), axis=1)
-            iso_riesgo_equipo_df['1.00EXP-12'] = df4.apply(lambda x: fn.iso_riesgo(
-                d1, d2, x[d1], x[d2], x['1.00EXP-12'], ries=pow(10, -12)
-            ), axis=1)
+                if 'EQUIPO' in risk.columns:
+                    df3 = iso_riesgo_aad.join(prob_muerte_aad[[d1, d2]])
+                    df4 = iso_riesgo_equipo_aad.join(prob_muerte_aad[['EQUIPO', d1, d2]].groupby('EQUIPO').sum())
+                    iso_riesgo_aad = fn.iso_riesgo_indv(iso_riesgo_aad, d1, d2, df3)
+                    iso_riesgo_equipo_aad = fn.iso_riesgo_eq(iso_riesgo_equipo_aad, d1, d2, df4)
+                else:
+                    df3 = iso_riesgo_aai.join(prob_muerte_aai[[d1, d2]])
+                    df4 = iso_riesgo_equipo_aai.join(prob_muerte_aai[['CUERPO DE AGUA', d1, d2]].groupby('CUERPO DE AGUA').sum())
+                    iso_riesgo_aai = fn.iso_riesgo_indv(iso_riesgo_aai, d1, d2, df3)
+                    iso_riesgo_equipo_aai = fn.iso_riesgo_eq(iso_riesgo_equipo_aai, d1, d2, df4)
         col += 1
  
-    prob_muerte_equipo = prob_muerte.groupby('EQUIPO').sum().drop(columns=['CODIGO ESCENARIO'])
+    prob_muerte_equipo_aad = prob_muerte_aad.groupby('EQUIPO').sum().drop(columns=['CODIGO ESCENARIO'])
+    prob_muerte_equipo_aai = prob_muerte_aai.groupby('CUERPO DE AGUA').sum().drop(columns=['CODIGO ESCENARIO'])
 
     output = BytesIO()
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        df.to_excel(writer, sheet_name="RI AAD")
-        prob_muerte.to_excel(writer, sheet_name="RI", index=False)
-        prob_muerte_equipo.to_excel(writer, sheet_name="RI x Equipo")
-        iso_riesgo_df.to_excel(writer, sheet_name="Isoriesgo", index=False)
-        iso_riesgo_equipo_df.to_excel(writer, sheet_name="Isoriesgo x Equipo")
+        ### AAD ###
+        aad_df.to_excel(writer, sheet_name="Datos AAD")
+        aad_sheet = writer.sheets['Datos AAD']
+        aad_sheet.set_tab_color('blue')
+        prob_muerte_aad.to_excel(writer, sheet_name="R_Indv AAD_Esc", index=False)
+        prob_muerte_equipo_aad.to_excel(writer, sheet_name="R_Indv AAD_Eqp")
+        iso_riesgo_aad.to_excel(writer, sheet_name="Dist_Isoriesgo AAD_Esc", index=False)
+        iso_riesgo_equipo_aad.to_excel(writer, sheet_name="Dist_Isoriesgo AAD_Eqp")
+        ### AAI ###
+        aai_df.to_excel(writer, sheet_name="Datos AAI")
+        aai_sheet = writer.sheets['Datos AAI']
+        aai_sheet.set_tab_color('blue')
+        prob_muerte_aai.to_excel(writer, sheet_name="R_Indv AAI_Esc", index=False)
+        prob_muerte_equipo_aai.to_excel(writer, sheet_name="R_Indv AAI_Eqp")
+        iso_riesgo_aai.to_excel(writer, sheet_name="Dist_Isoriesgo AAI_Esc", index=False)
+        iso_riesgo_equipo_aai.to_excel(writer, sheet_name="Dist_Isoriesgo AAI_Eqp")
     output.seek(0)
 
-    return send_file(output, download_name=f"{file_name}_RI.xlsx", as_attachment=True)
+    file_name = f"Cáculo Riesgo Individual_{request.form['file_name']}.xlsx"
+    return send_file(output, download_name=file_name, as_attachment=True)
  
 # Main Driver Function
 if __name__ == '__main__':

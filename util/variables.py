@@ -6,7 +6,8 @@ descarga_instantanea = ['R1', 'C1', 'P1']
 
 gases = ['Gas Natural', "GLP"]
 
-header1 = (
+#### AAD #####
+header1_aad = (
     [
         'CODIGO ESCENARIO',
         'EQUIPO',
@@ -26,13 +27,39 @@ header1 = (
     + ['SOBREPRESION (PSI) EXPLOSION NOCHE'] * 5
 )
 
-header2 = (
+header2_aad = (
     [''] * 9 + dist_afectacion * 3
     + ['Dia 100% LII', 'Dia 50% LII', 'Noche 100% LII', 'Noche 50% LII']
     + dist_explosion * 2
 )
 
+column_names_aad = [header1_aad, header2_aad]
+
+#### AAI #####
+header1_aai = (
+    [
+        'CUERPO DE AGUA',
+        'TRAMO',
+        'SUSTANCIA',
+        'INICIADOR',
+        'FRECUENCIA FALLA (año x m -1)',
+        'MODIFICADORES FRECUENCIA',
+    ]
+    + ['RADIACIÓN TÉRMICA (kW/m2) INCENDIO DE PISCINA'] * 8
+    + ['RADIACIÓN TÉRMICA (kW/m2) CHORRO DE FUEGO'] * 8
+    + ['RADIACIÓN TÉRMICA (kW/m2) BOLA DE FUEGO'] * 8
+    + ['DISPERSIÓN DE NUBE INFLAMABLE - DISTANCIAS DE AFECTACIÓN (m)'] * 4
+    + ['SOBREPRESION (PSI) EXPLOSION DIA'] * 5
+    + ['SOBREPRESION (PSI) EXPLOSION NOCHE'] * 5
+)
+
+header2_aai = (
+    [''] * 6 + dist_afectacion * 3
+    + ['Dia 100% LII', 'Dia 50% LII', 'Noche 100% LII', 'Noche 50% LII']
+    + dist_explosion * 2
+)
+
 # Define columns name
-column_names = [header1, header2]
+column_names_aai = [header1_aai, header2_aai]
 
 distancias = list(range(0, 1000)) + list(range(1000, 7500, 500))

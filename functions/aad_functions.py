@@ -1,42 +1,16 @@
 import pandas as pd
-from math import log
 from util import variables as var
 
-def interpolacion(dist, x1, x2, y1, y2):
-  return ( x1 + (
-    (x2 - x1)/(y2 - y1)
-  ) * (dist - y1) )
-
-def probit2(rad, probit_df):
-  probit2 = 0
-  if rad > 0:
-    t = 30
-    rad1 = rad * 1000
-    v = t * pow(rad1, 4/3)
-    prob = -36.38 + 2.56 * log(v)
-    prob = float(0) if prob < 0 else prob
-    search = pd.merge_asof(pd.DataFrame({'Probit': [prob]}), probit_df, on='Probit')
-    probit2 = (search['%'].tolist()[0])/100
-  return probit2
-
-def radiacion(dist, tabla):
-  tabla.fillna(0, inplace=True)
-  return tabla.apply(lambda x: 37.5
-    if dist < x['37.5'] or dist == 0 else (
-      interpolacion(dist, 20.9, 37.5, x['20.9'], x['37.5']) if x['37.5'] < dist < x['20.9'] else (
-        interpolacion(dist, 14.5, 20.9, x['14.5'], x['20.9']) if x['20.9'] < dist < x['14.5'] else (
-          interpolacion(dist, 12.5, 14.5, x['12.5'], x['14.5']) if x['14.5'] < dist < x['12.5'] else (
-            interpolacion(dist, 9.5, 12.5, x['9.5'], x['12.5']) if x['12.5'] < dist < x['9.5'] else (
-              interpolacion(dist, 7.3, 9.5, x['7.3'], x['9.5']) if x['9.5'] < dist < x['7.3'] else (
-                interpolacion(dist, 5, 7.3, x['5'], x['7.3']) if x['7.3'] < dist < x['5'] else (
-                  interpolacion(dist, 1.6, 5, x['1.6'], x['5']) if x['5'] < dist < x['1.6'] else 0
-                )
-              )
-            )
-          )
-        )
-      )
+def obtener_probabilidades(df, p2, ductos_df):
+    df['P1'] = df.apply(lambda x: get_p1(
+        x['CATEGORIA INFLAMABILIDAD'], x['REACTIVIDAD'], x['TASA (kg/s)']
     ), axis=1)
+    df['P2'] = p2
+    df['P3'] = p3(df, ductos_df)
+    df['P4'] = p4(df['SOBREPRESION (PSI) EXPLOSION DIA'], df['SOBREPRESION (PSI) EXPLOSION NOCHE'])
+    df['P5'] = 0
+
+    return df
 
 def get_p1(categoria, reactividad, tasa):
   if categoria.item() == 1:
@@ -149,9 +123,3 @@ def frecuencia_pf(iniciador, fase, p1, p2, p4, freq, incendio):
       if fase.values[0] == 'Liquido':
         pf = p1 + ((1 - p1) * p2 * p4) + ((1 - p1) * p2 * (1 - p4))
   return pf * freq
-
-def iso_riesgo(d1, d2, uno, dos, dist, ries):
-  iso_riesgo = dist
-  if ries < uno and ries > dos:
-    iso_riesgo = d1 + ((d2 - d1) / (dos - uno)) * (ries - uno)
-  return iso_riesgo

@@ -13,12 +13,39 @@
     </form>
     <hr>
     <form method="post" action="{{ url_for('compute') }}">
-        <b>P2: </b>
-        <input type="text" name="p2" size="10" required/>
-        <br>
-        <b>% Max. Rosa Vientos: </b>
-        <input type="text" name="rosa_vientos" size="20"required/>
+        <p>
+            <label>Estación o Sistema de transporte: </label>
+            <input type="text" name="file_name" required/>
+        </p>
+        <p>
+            <label>Max. Rosa Vientos: </label>
+            <input type="text" name="rosa_vientos" size="20" required/><br/>
+        </p>
         <hr>
+
+        <fieldset id="RiesgoIndividualAAD">
+            <legend>Riesgo Individual AAD</legend>
+                <label>P2: </label>
+                <input type="text" name="p2AAD" size="10" required/>
+        </fieldset>
+        <br>
+
+        <fieldset id="RiesgoIndividualAAI">
+            <legend>Riesgo Individual AAI</legend>
+                <p>
+                    <label>P1: </label>
+                    <input type="text" name="p1AAI" size="10" required/>
+                </p>
+                <p>
+                    <label>P2: </label>
+                    <input type="text" name="p2AAI" size="10" required/>
+                </p>
+                <p>
+                    <label>PResidual: </label>
+                    <input type="text" name="pResidual" size="10" required/>
+                </p>
+        </fieldset>
+        <br>
         <input type="submit" value="Calcular Riesgo Individual" />
     </form>
     <img src="{{url_for('static', filename='Imagotipo.png')}}" width="300" height="241" />
