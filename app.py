@@ -126,29 +126,23 @@ def compute():
 
             presion_dia= risk['SOBREPRESION (PSI) EXPLOSION DIA']['4.3'].apply(lambda x: rosa_vientos if dist < x else 0)
             presion_noche = risk['SOBREPRESION (PSI) EXPLOSION NOCHE']['4.3'].apply(lambda x: rosa_vientos if dist < x else 0)
-
+            prob_muerte =  0.6 * (
+                probit2_incendio * risk['Frecuencias']['PF'] + probit2_chorro * risk['Frecuencias']['JF'] +
+                probit2_bola * risk['Frecuencias']['BLEVE'] + llamarada_dia * risk['Frecuencias']['FF'] +
+                presion_dia * risk['Frecuencias']['EXP']
+            ) + 0.4 * (
+                probit2_incendio * risk['Frecuencias']['PF'] + probit2_chorro * risk['Frecuencias']['JF'] +
+                probit2_bola * risk['Frecuencias']['BLEVE'] + llamarada_noche * risk['Frecuencias']['FF'] +
+                presion_noche * risk['Frecuencias']['EXP']            
+            )
             if 'EQUIPO' in risk.columns:
                 prob_muerte_aad['EQUIPO'] = risk['EQUIPO']
                 prob_muerte_aad['CODIGO ESCENARIO'] = risk['CODIGO ESCENARIO']
-                prob_muerte_aad[dist] =  0.6 * (
-                    probit2_incendio * risk['Frecuencias']['PF'] + probit2_chorro * risk['Frecuencias']['JF'] +
-                    probit2_bola * risk['Frecuencias']['BLEVE'] + llamarada_dia * risk['Frecuencias']['FF'] +
-                    presion_dia * risk['Frecuencias']['EXP']
-                ) + 0.4 * (
-                    probit2_incendio * risk['Frecuencias']['PF'] + probit2_chorro * risk['Frecuencias']['JF'] +
-                    probit2_bola * risk['Frecuencias']['BLEVE'] + llamarada_noche * risk['Frecuencias']['FF'] +
-                    presion_noche * risk['Frecuencias']['EXP']            
-                )
+                prob_muerte_aad[dist] =  prob_muerte
             else:
                 prob_muerte_aai['CUERPO DE AGUA'] = risk['CUERPO DE AGUA']
                 prob_muerte_aai['CODIGO ESCENARIO'] = risk['CODIGO ESCENARIO']
-                prob_muerte_aai[dist] = 0.6 * (
-                    probit2_incendio * risk['Frecuencias']['PF'] +
-                    llamarada_dia * risk['Frecuencias']['FF']
-                ) + 0.4 * (
-                    probit2_incendio * risk['Frecuencias']['PF'] +
-                    llamarada_noche * risk['Frecuencias']['FF']
-                )
+                prob_muerte_aai[dist] = prob_muerte
 
             if col > 0:
                 d1 = var.distancias[col - 1]
