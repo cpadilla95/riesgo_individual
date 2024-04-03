@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+ 
+<head>
+    <title>Calculo de Riesgos</title>
+</head>
+ 
+<body>
+    <h1>Calculo del Riesgo Individual</h1>
+    <form action="{{ url_for('riesgo_individual') }}" method="post" enctype="multipart/form-data">
+        <input type="submit" value="Riesgo Individual">
+    </form>
+
+    <h1>Calculo del Riesgo Social</h1>
+    <form action="{{ url_for('riesgo_social') }}" method="post" enctype="multipart/form-data">
+        <input type="submit" value="Riesgo Social">
+    </form>
+
+    <img src="{{url_for('static', filename='Imagotipo.png')}}" width="300" height="241" />
+</body>
+ 
+</html>

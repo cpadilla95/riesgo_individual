@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+ 
+<head>
+    <title>Archivo Cargado</title>
+</head>
+ 
+<body>
+    <h1>Calculo del Riesgo Social</h1>
+    <form method="post" action="{{ url_for('social_preview') }}">
+        <b>Archivo cargado: </b>
+        <input type="submit" value="Ver Archivo" />
+    </form>
+    <hr>
+    <form method="post" action="{{ url_for('social_compute') }}">
+        <p>
+            <label>Max. Rosa Vientos: </label>
+            <input type="text" name="rosa_vientos" size="20" required/><br/>
+        </p>
+
+        <fieldset id="Distancias">
+            <legend>Distancia a calcular</legend>
+                <p>
+                    <label>Desde: </label>
+                    <input type="text" name="desde" size="10"/>
+                </p>
+                <p>
+                    <label>Hasta: </label>
+                    <input type="text" name="hasta" size="10"/>
+                </p>
+        </fieldset>
+        <br>
+        <input type="submit" value="Calcular Riesgo Social" />
+    </form>
+    <img src="{{url_for('static', filename='Imagotipo.png')}}" width="300" height="241" />
+</body>
+ 
+</html>
