@@ -63,3 +63,9 @@ header2_aai = (
 column_names_aai = [header1_aai, header2_aai]
 
 distancias = list(range(0, 1000)) + list(range(1000, 7500, 500))
+
+####SOCIAL####
+fatalidades = [1, 50, 100, 1000]
+limite_inferior = [0.000477742562115388, 0.000002, 7.5789157091564E-07, 3.15478672240097E-08]
+limite_superior = [0.0478040492097267, 0.0002, 0.0000757484899840227, 3.01597610661533E-06]
+afectacion_baja = [1.6, 5, '0,4 psi', 'LII/2']

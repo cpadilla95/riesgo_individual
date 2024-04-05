@@ -14,6 +14,10 @@
     <hr>
     <form method="post" action="{{ url_for('social_compute') }}">
         <p>
+            <label>Estación o Sistema de transporte: </label>
+            <input type="text" name="file_name" required/>
+        </p>
+        <p>
             <label>Max. Rosa Vientos: </label>
             <input type="text" name="rosa_vientos" size="20" required/><br/>
         </p>

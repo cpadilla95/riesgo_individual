@@ -3,6 +3,7 @@ import numpy as np
 import os
 import re
 import sys
+import matplotlib.pyplot as plt
 from io import BytesIO
 from util import variables as var
 from functions import read_files, riesgo_social as soc_fn
@@ -115,18 +116,19 @@ def social_compute():
     
     social_df = soc_fn.obtener_riesgo_social(social_df, probit_df)
 
-    onsite_dia_df = soc_fn.get_graph_df(social_df, 'Dia', 'ONSITE')
-    onsite_noche_df = soc_fn.get_graph_df(social_df, 'Noche', 'ONSITE')
-    onsite_total_df = soc_fn.get_graph_df(social_df, 'Total', 'ONSITE')
-    offsite_dia_df = soc_fn.get_graph_df(social_df, 'Dia', 'OFFSITE')
-    offsite_noche_df = soc_fn.get_graph_df(social_df, 'Noche', 'OFFSITE')
-    offsite_total_df = soc_fn.get_graph_df(social_df, 'Total', 'OFFSITE')
-
     output = BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        social_df.to_excel(writer, sheet_name="Preview")
+    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+        social_df.to_excel(writer, sheet_name='Cruces', index=False)
+        soc_fn.graph_rs(writer, social_df, 'Dia', 'ONSITE')
+        soc_fn.graph_rs(writer, social_df, 'Noche', 'ONSITE')
+        soc_fn.graph_rs(writer, social_df, 'Total', 'ONSITE')
+        soc_fn.graph_rs(writer, social_df, 'Dia', 'OFFSITE')
+        soc_fn.graph_rs(writer, social_df, 'Noche', 'OFFSITE')
+        soc_fn.graph_rs(writer, social_df, 'Total', 'OFFSITE')
     output.seek(0)
-    return send_file(output, download_name="vista_previa_riesgos.xlsx", as_attachment=True)
+
+    file_name = f"Cáculo Riesgo Social_{request.form['file_name']}.xlsx"
+    return send_file(output, download_name=file_name, as_attachment=True)
 
 # Main Driver Function
 if __name__ == '__main__':
